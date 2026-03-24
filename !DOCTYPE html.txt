@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>BlockVote - Decentralized Blockchain Polling</title>
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.9.0/dist/ethers.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#060810;color:#E8EDF8;font-family:'Inter',sans-serif;min-height:100vh}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:#060810}::-webkit-scrollbar-thumb{background:#1A2035;border-radius:2px}
+.nav{position:sticky;top:0;z-index:999;background:rgba(6,8,16,0.93);backdrop-filter:blur(20px);border-bottom:1px solid #1A2035;display:flex;align-items:center;justify-content:space-between;padding:0 2rem;height:64px}
+.logo{font-family:'Space Grotesk',sans-serif;font-size:1.4rem;font-weight:700;cursor:pointer;color:#E8EDF8}
+.logo span{color:#4F7EFF}
+.badge{font-size:0.62rem;background:rgba(34,212,122,0.12);color:#22D47A;padding:3px 10px;border-radius:100px;border:1px solid rgba(34,212,122,0.25);margin-left:8px}
+.nav-links{display:flex;gap:4px}
+.nav-btn{padding:0.42rem 1rem;border-radius:8px;border:none;background:transparent;color:#5A6A8A;cursor:pointer;font-size:0.83rem;font-family:'Inter',sans-serif;font-weight:500;transition:all 0.15s;border-bottom:2px solid transparent}
+.nav-btn.active{background:rgba(79,126,255,0.12);color:#A0BBFF;border-bottom:2px solid #4F7EFF}
+.connect-btn{padding:0.55rem 1.2rem;border-radius:10px;border:1px solid #1A2035;background:transparent;color:#5A6A8A;cursor:pointer;font-size:0.82rem;font-family:'Inter',sans-serif;transition:all 0.15s}
+.connect-btn.connected{border-color:rgba(34,212,122,0.35);color:#22D47A;background:rgba(34,212,122,0.08)}
+.page{display:none}.page.active{display:block}
+.wrap{max-width:1100px;margin:0 auto;padding:0 1.5rem}
+.card{background:#111520;border-radius:16px;border:1px solid #1A2035}
+.hero{text-align:center;padding:5rem 1.5rem;border-bottom:1px solid #1A2035;background:radial-gradient(ellipse at 50% 0%,rgba(79,126,255,0.1) 0%,transparent 60%)}
+.hero h1{font-family:'Space Grotesk',sans-serif;font-size:clamp(2.5rem,5vw,4.5rem);font-weight:800;line-height:1.1;margin:0 0 1.25rem;letter-spacing:-0.04em}
+.hero h1 span{color:#4F7EFF}
+.hero p{color:#5A6A8A;font-size:1rem;max-width:460px;margin:0 auto 2.5rem;line-height:1.7}
+.btn-primary{display:inline-flex;align-items:center;gap:8px;padding:0.7rem 1.5rem;border-radius:10px;background:linear-gradient(135deg,#4F7EFF,#2A5AE8);color:#fff;border:none;cursor:pointer;font-size:0.88rem;font-family:'Inter',sans-serif;font-weight:600;box-shadow:0 4px 16px rgba(79,126,255,0.3);transition:all 0.15s}
+.btn-primary:disabled{background:#2A3550;color:#5A6A8A;box-shadow:none;cursor:not-allowed}
+.btn-outline{display:inline-flex;align-items:center;gap:8px;padding:0.6rem 1.2rem;border-radius:10px;background:transparent;color:#5A6A8A;border:1px solid #1A2035;cursor:pointer;font-size:0.83rem;font-family:'Inter',sans-serif;transition:all 0.15s}
+.btn-success{display:inline-flex;align-items:center;gap:8px;padding:0.7rem 1.5rem;border-radius:10px;background:linear-gradient(135deg,#22D47A,#18A85A);color:#fff;border:none;cursor:pointer;font-size:0.88rem;font-family:'Inter',sans-serif;font-weight:600}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:2.5rem}
+.stat-card{background:#111520;border-radius:14px;border:1px solid #1A2035;padding:1.25rem;text-align:center}
+.stat-num{font-family:'Space Grotesk',sans-serif;font-size:1.8rem;font-weight:700;color:#A0BBFF}
+.stat-label{font-size:0.72rem;color:#5A6A8A;margin-top:2px}
+.polls-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:1.25rem}
+.poll-card{background:#111520;border-radius:16px;border:1px solid #1A2035;padding:1.5rem;cursor:pointer;transition:all 0.15s}
+.poll-card:hover{border-color:#2A3555;transform:translateY(-2px)}
+.pill{display:inline-block;padding:3px 10px;border-radius:100px;font-size:0.68rem;font-weight:700}
+.pill-live{background:rgba(34,212,122,0.15);color:#22D47A;border:1px solid rgba(34,212,122,0.3)}
+.pill-ended{background:rgba(255,79,106,0.15);color:#FF4F6A;border:1px solid rgba(255,79,106,0.3)}
+.pill-done{background:rgba(155,111,255,0.15);color:#9B6FFF;border:1px solid rgba(155,111,255,0.3)}
+.pill-voted{background:rgba(79,126,255,0.15);color:#4F7EFF;border:1px solid rgba(79,126,255,0.3)}
+.bar-bg{height:5px;background:#0C0F1A;border-radius:100px;overflow:hidden;margin-top:3px}
+.bar-fill{height:100%;border-radius:100px;transition:width 0.5s;background:linear-gradient(90deg,#4F7EFF,#2A5AE8)}
+.bar-fill.win{background:linear-gradient(90deg,#22D47A,#18A85A)}
+input,select,textarea{background:#0C0F1A;border:1px solid #1A2035;border-radius:10px;padding:0.75rem 1rem;color:#E8EDF8;font-family:'Inter',sans-serif;font-size:0.9rem;outline:none;width:100%;box-sizing:border-box}
+input:focus,select:focus{border-color:#4F7EFF}
+.lbl{display:block;font-size:0.7rem;color:#5A6A8A;margin-bottom:6px;letter-spacing:0.08em;text-transform:uppercase}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:9999;display:none;align-items:center;justify-content:center;padding:1rem}
+.modal-bg.show{display:flex}
+.modal{background:#111520;border-radius:20px;border:1px solid #1A2035;padding:2rem;max-width:580px;width:100%;max-height:90vh;overflow-y:auto}
+.opt-row{border:1.5px solid #1A2035;border-radius:12px;padding:1rem;cursor:pointer;transition:all 0.15s;margin-bottom:10px}
+.opt-row:hover{border-color:#2A3555}
+.opt-row.selected{border-color:#4F7EFF;background:rgba(79,126,255,0.08)}
+.opt-row.win-row{border-color:#22D47A;background:rgba(34,212,122,0.06)}
+.toast{position:fixed;bottom:2rem;right:2rem;z-index:99999;padding:0.9rem 1.25rem;border-radius:12px;font-size:0.87rem;max-width:360px;display:none;box-shadow:0 8px 32px rgba(0,0,0,0.5)}
+.toast.show{display:block}
+.toast.success{background:rgba(34,212,122,0.12);border:1px solid rgba(34,212,122,0.35);color:#22D47A}
+.toast.error{background:rgba(255,79,106,0.12);border:1px solid rgba(255,79,106,0.35);color:#FF4F6A}
+.toast.info{background:rgba(79,126,255,0.12);border:1px solid rgba(79,126,255,0.35);color:#A0BBFF}
+.no-wallet{background:rgba(79,126,255,0.06);border:1px solid rgba(79,126,255,0.2);border-radius:16px;padding:2.5rem;text-align:center;margin-bottom:2rem}
+.loading-box{text-align:center;padding:4rem;color:#5A6A8A}
+.step-card{display:flex;gap:1.5rem;margin-bottom:1.5rem}
+.step-icon{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0;background:rgba(79,126,255,0.1);border:1px solid rgba(79,126,255,0.2)}
+.step-body{flex:1;background:#111520;border-radius:14px;border:1px solid #1A2035;padding:1.25rem}
+.step-body h3{font-family:'Space Grotesk',sans-serif;font-weight:600;margin-bottom:0.5rem}
+.step-body p{font-size:0.88rem;color:#5A6A8A;line-height:1.65}
+.info-row{display:flex;justify-content:space-between;padding:0.75rem 1.25rem;border-bottom:1px solid #1A2035;font-size:0.85rem}
+.info-row:last-child{border-bottom:none}
+.faucet-grid{display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-top:0.75rem}
+.faucet-link{padding:8px 14px;border-radius:8px;background:rgba(34,212,122,0.08);color:#22D47A;border:1px solid rgba(34,212,122,0.2);font-size:0.8rem;text-decoration:none;display:block;text-align:center}
+.warn-box{background:rgba(255,184,48,0.08);border:1px solid rgba(255,184,48,0.2);border-radius:10px;padding:0.75rem 1rem;color:#FFB830;font-size:0.82rem;margin-bottom:2rem}
+.toggle{width:44px;height:24px;border-radius:12px;background:#2A3550;cursor:pointer;position:relative;transition:all 0.2s;flex-shrink:0;border:none}
+.toggle.on{background:#4F7EFF}
+.tdot{position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:all 0.2s}
+.toggle.on .tdot{left:23px}
+.bet-opt{padding:6px 14px;border-radius:8px;font-size:0.82rem;cursor:pointer;background:#0C0F1A;color:#5A6A8A;border:1px solid #1A2035;display:inline-block;margin:3px;transition:all 0.15s}
+.bet-opt.sel{background:rgba(79,126,255,0.12);color:#A0BBFF;border-color:#4F7EFF}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="logo" onclick="showPage('polls')">🗳️ Block<span>Vote</span><span class="badge">⚡ Sepolia</span></div>
+  <div class="nav-links">
+    <button class="nav-btn active" id="nav-polls" onclick="showPage('polls')">Polls</button>
+    <button class="nav-btn" id="nav-create" onclick="showPage('create')">Create Poll</button>
+    <button class="nav-btn" id="nav-start" onclick="showPage('start')">Get Started</button>
+    <button class="nav-btn" id="nav-how" onclick="showPage('how')">How It Works</button>
+  </div>
+  <button class="connect-btn" id="connectBtn" onclick="connectWallet()">🔌 Connect Wallet</button>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+<div class="modal-bg" id="modalBg" onclick="closeModal()">
+  <div class="modal" onclick="event.stopPropagation()" id="modalInner"></div>
+</div>
+
+<!-- POLLS PAGE -->
+<div class="page active" id="page-polls">
+  <div class="hero" id="heroSection">
+    <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(34,212,122,0.08);border:1px solid rgba(34,212,122,0.2);border-radius:100px;padding:5px 14px;font-size:0.7rem;color:#22D47A;margin-bottom:2rem">
+      <span style="width:6px;height:6px;border-radius:50%;background:#22D47A;display:inline-block"></span> Live on Sepolia Testnet
+    </div>
+    <h1>Your Voice.<br><span>Your Choice.</span></h1>
+    <p>Decentralized polling powered by blockchain. Every vote on-chain — transparent, immutable, trustless.</p>
+    <div style="display:flex;gap:1rem;justify-content:center">
+      <button class="btn-primary" onclick="connectWallet()">🔌 Connect Wallet</button>
+      <button class="btn-outline" onclick="showPage('start')">📖 Get Started</button>
+    </div>
+  </div>
+  <div class="wrap" style="padding-top:3rem;padding-bottom:3rem">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2rem">
+      <div>
+        <h2 style="font-family:'Space Grotesk',sans-serif;font-size:2rem;font-weight:700">Active <span style="color:#4F7EFF">Polls</span></h2>
+        <div style="color:#5A6A8A;font-size:0.85rem;margin-top:4px">On-chain voting — transparent and immutable</div>
+      </div>
+      <div style="display:flex;gap:0.75rem">
+        <button class="btn-outline" onclick="loadPolls()">🔄 Refresh</button>
+        <button class="btn-primary" onclick="showPage('create')">➕ Create Poll</button>
+      </div>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-card"><div style="font-size:1.4rem;margin-bottom:4px">🗳️</div><div class="stat-num" id="sTotal">0</div><div class="stat-label">Total Polls</div></div>
+      <div class="stat-card"><div style="font-size:1.4rem;margin-bottom:4px">🟢</div><div class="stat-num" id="sActive">0</div><div class="stat-label">Active</div></div>
+      <div class="stat-card"><div style="font-size:1.4rem;margin-bottom:4px">✅</div><div class="stat-num" id="sDone">0</div><div class="stat-label">Finalized</div></div>
+      <div class="stat-card"><div style="font-size:1.4rem;margin-bottom:4px">📊</div><div class="stat-num" id="sVotes">0</div><div class="stat-label">Total Votes</div></div>
+    </div>
+    <div id="nwBanner" class="no-wallet">
+      <div style="font-size:2.5rem;margin-bottom:1rem">🦊</div>
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:1.2rem;font-weight:600;margin-bottom:0.5rem">Connect MetaMask to Participate</div>
+      <div style="color:#5A6A8A;font-size:0.88rem;margin-bottom:1.5rem">Connect wallet to create polls and vote. Polls visible to all.</div>
+      <button class="btn-primary" onclick="connectWallet()">🔌 Connect Wallet</button>
+    </div>
+    <div id="loadBox" class="loading-box" style="display:none">
+      <div style="font-size:2rem;margin-bottom:1rem">⛓️</div>Loading polls from blockchain...
+    </div>
+    <div class="polls-grid" id="pollsGrid"></div>
+    <div id="noPolls" style="display:none;text-align:center;padding:4rem;color:#5A6A8A">
+      <div style="font-size:2rem;margin-bottom:1rem">🗳️</div>
+      <div style="color:#E8EDF8;margin-bottom:0.5rem;font-family:'Space Grotesk',sans-serif;font-size:1.2rem">No polls yet</div>
+      <div style="margin-bottom:1.5rem">Be the first to create a poll!</div>
+      <button class="btn-primary" onclick="showPage('create')">➕ Create First Poll</button>
+    </div>
+  </div>
+</div>
+
+<!-- CREATE PAGE -->
+<div class="page" id="page-create">
+  <div class="wrap" style="padding-top:3rem;padding-bottom:3rem">
+    <div style="max-width:640px;margin:0 auto">
+      <div id="noWalletCreate" style="text-align:center;padding:4rem;display:none">
+        <div style="font-size:3rem;margin-bottom:1rem">🔌</div>
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:1.5rem;font-weight:600;margin-bottom:1rem">Connect Wallet First</div>
+        <button class="btn-primary" onclick="connectWallet()">Connect MetaMask</button>
+      </div>
+      <div id="createFormDiv">
+        <h1 style="font-family:'Space Grotesk',sans-serif;font-size:2.2rem;font-weight:700;margin-bottom:0.4rem">Create a <span style="color:#4F7EFF">Poll</span></h1>
+        <div style="color:#5A6A8A;font-size:0.88rem;margin-bottom:2.5rem">Your poll will be permanently recorded on Sepolia blockchain</div>
+        <div class="card" style="padding:2rem;margin-bottom:1.25rem">
+          <div style="margin-bottom:1.5rem">
+            <label class="lbl">Your Question *</label>
+            <input id="pollQ" placeholder="What should we decide together?" maxlength="200" oninput="document.getElementById('qc').textContent=this.value.length"/>
+            <div style="font-size:0.72rem;color:#5A6A8A;margin-top:4px;text-align:right"><span id="qc">0</span>/200</div>
+          </div>
+          <div style="margin-bottom:1.5rem">
+            <label class="lbl">Answer Options * (2-6)</label>
+            <div id="optsList"></div>
+            <button class="btn-outline" id="addOptBtn" style="margin-top:8px;font-size:0.8rem" onclick="addOpt()">+ Add Option</button>
+          </div>
+          <div style="margin-bottom:1.5rem">
+            <label class="lbl">Poll Duration</label>
+            <select id="pollDur">
+              <option value="3600">1 hour</option>
+              <option value="21600">6 hours</option>
+              <option value="86400" selected>1 day</option>
+              <option value="259200">3 days</option>
+              <option value="604800">7 days</option>
+              <option value="1209600">14 days</option>
+              <option value="2592000">30 days</option>
+            </select>
+          </div>
+          <div style="background:#0C0F1A;border-radius:12px;padding:1.25rem;border:1px solid #1A2035">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <div>
+                <div style="font-weight:600;font-size:0.9rem">💰 Place a Bet (Optional)</div>
+                <div style="font-size:0.78rem;color:#5A6A8A;margin-top:2px">Predict the winner. Win 90% of pool!</div>
+              </div>
+              <button class="toggle" id="betTgl" onclick="toggleBet()"><div class="tdot"></div></button>
+            </div>
+            <div id="betSec" style="display:none;margin-top:1rem">
+              <label class="lbl">Which option will win?</label>
+              <div id="betOptsList"></div>
+            </div>
+          </div>
+        </div>
+        <div class="card" style="padding:1.25rem;margin-bottom:1.5rem;border-color:rgba(79,126,255,0.25)">
+          <div style="font-weight:600;font-size:0.85rem;margin-bottom:0.75rem;color:#A0BBFF">💸 Cost Summary</div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+            <span style="font-size:0.82rem;color:#5A6A8A">Platform fee</span>
+            <span style="font-size:0.82rem">0.005 ETH</span>
+          </div>
+          <div id="betCostRow" style="display:none;flex-direction:row;justify-content:space-between;margin-bottom:4px">
+            <span style="font-size:0.82rem;color:#5A6A8A">Bet amount</span>
+            <span style="font-size:0.82rem">0.001 ETH</span>
+          </div>
+          <div style="border-top:1px solid #1A2035;padding-top:0.6rem;margin-top:0.6rem;display:flex;justify-content:space-between">
+            <span style="font-weight:700">Total</span>
+            <span style="font-weight:700;color:#A0BBFF" id="totalCost">0.005 ETH</span>
+          </div>
+        </div>
+        <button class="btn-primary" style="width:100%;justify-content:center;padding:1rem" id="createBtn" onclick="submitPoll()">
+          🚀 Create Poll on Blockchain
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- HOW IT WORKS -->
+<div class="page" id="page-how">
+  <div class="wrap" style="padding-top:3rem;padding-bottom:3rem;max-width:800px;margin:0 auto">
+    <h1 style="font-family:'Space Grotesk',sans-serif;font-size:2.5rem;font-weight:700;margin-bottom:0.4rem">How <span style="color:#4F7EFF">BlockVote</span> Works</h1>
+    <p style="color:#5A6A8A;font-size:0.9rem;margin-bottom:3rem">Decentralized polling — every vote is transparent and immutable on Sepolia.</p>
+    <div class="step-card"><div class="step-icon">🔌</div><div class="step-body"><h3>Connect Your Wallet</h3><p>Link MetaMask to Sepolia testnet. We auto-detect and switch networks. Mobile users redirected to MetaMask browser.</p></div></div>
+    <div class="step-card"><div class="step-icon">📝</div><div class="step-body"><h3>Create a Poll</h3><p>Set a question, 2-6 options, duration (1hr-30 days). Optionally bet on the outcome and win 90% of the pool if correct!</p></div></div>
+    <div class="step-card"><div class="step-icon">🗳️</div><div class="step-body"><h3>Community Votes</h3><p>Anyone votes for 0.001 ETH. One wallet = one vote per poll. All votes permanently on-chain and verifiable.</p></div></div>
+    <div class="step-card"><div class="step-icon">🏁</div><div class="step-body"><h3>Finalize and Payout</h3><p>After time ends, anyone can finalize. Creator wins 90% of prize pool if their bet was correct. Fully automated.</p></div></div>
+    <div class="step-card"><div class="step-icon">🔍</div><div class="step-body"><h3>Full Transparency</h3><p>Every vote verifiable on Sepolia Etherscan. No manipulation possible — the smart contract is law.</p></div></div>
+    <div class="card" style="padding:1.5rem;margin-top:2rem;border-color:rgba(79,126,255,0.2)">
+      <div style="font-family:'Space Grotesk',sans-serif;font-weight:600;margin-bottom:1rem">📜 Contract Info</div>
+      <div class="info-row"><span style="color:#5A6A8A">Network</span><span>Sepolia Testnet</span></div>
+      <div class="info-row"><span style="color:#5A6A8A">Chain ID</span><span>11155111</span></div>
+      <div class="info-row"><span style="color:#5A6A8A">Creation Fee</span><span>0.005 ETH</span></div>
+      <div class="info-row"><span style="color:#5A6A8A">Vote Fee</span><span>0.001 ETH</span></div>
+      <div class="info-row"><span style="color:#5A6A8A">Contract Address</span><a href="https://sepolia.etherscan.io/address/0x717D92da7276Fe3E9254539A68A3758640250372" target="_blank" style="color:#4F7EFF;font-size:0.82rem">0x717D...0372 ↗</a></div>
+    </div>
+  </div>
+</div>
+
+<!-- GET STARTED -->
+<div class="page" id="page-start">
+  <div class="wrap" style="padding-top:3rem;padding-bottom:3rem;max-width:700px;margin:0 auto">
+    <div class="warn-box">⚠️ TESTNET ONLY — No real money. All transactions use free test ETH with zero real-world value.</div>
+    <h1 style="font-family:'Space Grotesk',sans-serif;font-size:2.5rem;font-weight:700;margin-bottom:0.4rem">Get <span style="color:#4F7EFF">Started</span></h1>
+    <p style="color:#5A6A8A;font-size:0.9rem;margin-bottom:3rem">4 steps to join decentralized voting on Sepolia testnet</p>
+    <div class="step-card"><div class="step-icon">🦊</div><div class="step-body"><h3>Install MetaMask</h3><p>Visit <a href="https://metamask.io" target="_blank" style="color:#4F7EFF">metamask.io</a> and install the browser extension or mobile app. Create a new wallet and <strong style="color:#FF4F6A">save your 12-word recovery phrase safely — never share it!</strong></p></div></div>
+    <div class="step-card"><div class="step-icon">🔀</div><div class="step-body"><h3>Switch to Sepolia Testnet</h3><p>MetaMask → Network dropdown → Settings → Advanced → Enable Test Networks → Select Sepolia. Or just connect here — we auto-switch for you!</p></div></div>
+    <div class="step-card"><div class="step-icon">⛽</div><div class="step-body"><h3>Get Free Test ETH (need ~0.01 ETH)</h3><div class="faucet-grid"><a class="faucet-link" href="https://sepoliafaucet.com" target="_blank">⭐ Alchemy — Best</a><a class="faucet-link" href="https://sepolia-faucet.pk910.de" target="_blank">⛏️ PoW — No login</a><a class="faucet-link" href="https://www.infura.io/faucet/sepolia" target="_blank">🌐 Infura — 0.5 ETH</a><a class="faucet-link" href="https://faucet.quicknode.com/ethereum/sepolia" target="_blank">⚡ QuickNode — Fast</a></div></div></div>
+    <div class="step-card"><div class="step-icon">🗳️</div><div class="step-body"><h3>Start Voting!</h3><p>Create poll: <strong>0.005 ETH</strong> &nbsp;·&nbsp; Vote: <strong>0.001 ETH</strong> per vote &nbsp;·&nbsp; Optional bet: <strong>+0.001 ETH</strong></p></div></div>
+    <div style="display:flex;gap:1rem;margin-top:2rem">
+      <button class="btn-primary" onclick="connectWallet()">🔌 Connect Wallet Now</button>
+      <button class="btn-outline" onclick="showPage('polls')">📊 Browse Polls</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const CA = "0x717D92da7276Fe3E9254539A68A3758640250372";
+const SID = "0xaa36a7";
+const ABI = [
+  "function createPoll(string memory _question, string[] memory _options, uint256 _durationInSeconds, uint8 _betOption) external payable",
+  "function vote(uint256 _pollId, uint8 _option) external payable",
+  "function finalizePoll(uint256 _pollId) external",
+  "function getPoll(uint256 _pollId) external view returns (string memory question, string[] memory options, uint256[] memory votes, uint256 endTime, bool finalized, address creator, uint256 totalFunds, int8 betOption, bool creatorBetCorrect)",
+  "function getPollCount() external view returns (uint256)",
+  "function hasVoted(uint256 _pollId, address _voter) external view returns (bool)"
+];
+
+let provider, signer, ct, walletAddr;
+let opts = ["",""];
+let betOn = false, betIdx = 0;
+let polls = [], voted = {};
+let toastT;
+
+function showPage(p) {
+  document.querySelectorAll('.page').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(x => x.classList.remove('active'));
+  document.getElementById('page-' + p).classList.add('active');
+  const nb = document.getElementById('nav-' + p);
+  if(nb) nb.classList.add('active');
+  if(p === 'create') {
+    document.getElementById('noWalletCreate').style.display = walletAddr ? 'none' : 'block';
+    document.getElementById('createFormDiv').style.display = walletAddr ? 'block' : 'none';
+    renderOpts();
+  }
+  if(p === 'polls' && walletAddr) loadPolls();
+  window.scrollTo(0,0);
+}
+
+function showToast(type, msg) {
+  const t = document.getElementById('toast');
+  t.className = 'toast show ' + type;
+  t.textContent = (type==='success'?'✅ ':type==='error'?'❌ ':'ℹ️ ') + msg;
+  clearTimeout(toastT);
+  toastT = setTimeout(() => t.classList.remove('show'), 5000);
+}
+
+const sa = a => a ? a.slice(0,6)+'...'+a.slice(-4) : '';
+const fe = w => parseFloat(ethers.formatEther(w)).toFixed(4);
+const pc = (v,t) => t===0 ? 0 : Math.round((v/t)*100);
+function fmtTime(s) {
+  if(s<=0) return 'Ended';
+  const d=Math.floor(s/86400),h=Math.floor((s%86400)/3600),m=Math.floor((s%3600)/60);
+  if(d>0) return d+'d '+h+'h';
+  if(h>0) return h+'h '+m+'m';
+  return m+'m '+(s%60)+'s';
+}
+
+async function connectWallet() {
+  if(!window.ethereum) { showToast('error','MetaMask not found! Install from metamask.io'); return; }
+  try {
+    provider = new ethers.BrowserProvider(window.ethereum);
+    await provider.send("eth_requestAccounts",[]);
+    const net = await provider.getNetwork();
+    if(net.chainId !== BigInt(parseInt(SID,16))) {
+      try { await window.ethereum.request({method:'wallet_switchEthereumChain',params:[{chainId:SID}]}); }
+      catch { showToast('error','Please switch to Sepolia testnet'); return; }
+      provider = new ethers.BrowserProvider(window.ethereum);
+    }
+    signer = await provider.getSigner();
+    walletAddr = await signer.getAddress();
+    ct = new ethers.Contract(CA, ABI, signer);
+    const btn = document.getElementById('connectBtn');
+    btn.textContent = '🟢 ' + sa(walletAddr);
+    btn.classList.add('connected');
+    document.getElementById('nwBanner').style.display = 'none';
+    document.getElementById('heroSection').style.display = 'none';
+    showToast('success', 'Connected: ' + sa(walletAddr));
+    loadPolls();
+  } catch(e) {
+    showToast('error', e.message?.slice(0,80) || 'Connection failed');
+  }
+}
+
+async function loadPolls() {
+  if(!ct) return;
+  document.getElementById('loadBox').style.display = 'block';
+  document.getElementById('pollsGrid').innerHTML = '';
+  document.getElementById('noPolls').style.display = 'none';
+  try {
+    const count = Number(await ct.getPollCount());
+    polls = []; voted = {};
+    for(let i=count-1; i>=Math.max(0,count-20); i--) {
+      try {
+        const [q,os,vc,et,fin,creator,tf,bo] = await ct.getPoll(i);
+        const v = vc.map(x=>Number(x));
+        const tv = v.reduce((a,b)=>a+b,0);
+        const rem = Number(et) - Math.floor(Date.now()/1000);
+        polls.push({id:i,question:q,options:Array.from(os),votes:v,endTime:Number(et),finalized:fin,creator,totalFunds:tf,betOption:Number(bo),totalVotes:tv,remaining:rem});
+        if(walletAddr) { try { voted[i] = await ct.hasVoted(i,walletAddr); } catch{} }
+      } catch{}
+    }
+    document.getElementById('sTotal').textContent = polls.length;
+    document.getElementById('sActive').textContent = polls.filter(p=>!p.finalized&&p.remaining>0).length;
+    document.getElementById('sDone').textContent = polls.filter(p=>p.finalized).length;
+    document.getElementById('sVotes').textContent = polls.reduce((a,p)=>a+p.totalVotes,0);
+    renderPolls();
+  } catch(e) {
+    showToast('error','Failed to load polls');
+  }
+  document.getElementById('loadBox').style.display = 'none';
+}
+
+function renderPolls() {
+  const g = document.getElementById('pollsGrid');
+  if(polls.length===0) { document.getElementById('noPolls').style.display='block'; return; }
+  g.innerHTML = polls.map(p => {
+    const rem = p.endTime - Math.floor(Date.now()/1000);
+    const live = rem>0 && !p.finalized;
+    const winI = p.finalized ? p.votes.indexOf(Math.max(...p.votes)) : -1;
+    const pill = p.finalized ? '<span class="pill pill-done">FINALIZED</span>' : live ? '<span class="pill pill-live">LIVE</span>' : '<span class="pill pill-ended">ENDED</span>';
+    const vbadge = voted[p.id] ? '<span class="pill pill-voted" style="margin-left:6px">VOTED</span>' : '';
+    const bars = p.options.slice(0,3).map((o,i)=>{
+      const pv=pc(p.votes[i],p.totalVotes), win=p.finalized&&i===winI;
+      return '<div style="margin-bottom:6px"><div style="display:flex;justify-content:space-between;font-size:0.8rem;margin-bottom:3px"><span style="color:'+(win?'#22D47A':'#E8EDF8')+'">'+(win?'🏆 ':'')+o+'</span><span style="color:#5A6A8A">'+pv+'% ('+p.votes[i]+')</span></div><div class="bar-bg"><div class="bar-fill'+(win?' win':'')+'" style="width:'+pv+'%"></div></div></div>';
+    }).join('');
+    return '<div class="poll-card" onclick="openPoll('+p.id+')">'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem">'
+      +'<div>'+pill+vbadge+'</div>'
+      +'<div style="text-align:right;font-size:0.75rem;color:#5A6A8A"><div style="color:'+(live?'#FFB830':'#5A6A8A')+'">'+(live?'⏱ '+fmtTime(rem):p.finalized?'✅ Done':'⏳ Finalizable')+'</div><div style="margin-top:2px">💰 '+fe(p.totalFunds)+' ETH</div></div></div>'
+      +'<div style="font-family:Space Grotesk,sans-serif;font-size:1.05rem;font-weight:600;margin-bottom:1rem;line-height:1.4">'+p.question+'</div>'
+      +bars
+      +'<div style="display:flex;justify-content:space-between;margin-top:1rem;padding-top:0.75rem;border-top:1px solid #1A2035;font-size:0.73rem;color:#5A6A8A"><span>👤 '+sa(p.creator)+' · '+p.totalVotes+' votes</span><span style="color:#4F7EFF">View details →</span></div></div>';
+  }).join('');
+}
+
+let curPoll = null, selOpt = null;
+
+function openPoll(id) {
+  curPoll = polls.find(x=>x.id===id);
+  if(!curPoll) return;
+  selOpt = null;
+  const p = curPoll;
+  const rem = p.endTime - Math.floor(Date.now()/1000);
+  const live = rem>0 && !p.finalized;
+  const canFin = rem<=0 && !p.finalized;
+  const winI = p.finalized ? p.votes.indexOf(Math.max(...p.votes)) : -1;
+  const hasVoted = voted[id];
+
+  const optHtml = p.options.map((o,i)=>{
+    const pv=pc(p.votes[i],p.totalVotes), win=p.finalized&&i===winI;
+    return '<div class="opt-row'+(win?' win-row':'')+'" id="or'+i+'" onclick="pickOpt('+i+')" style="cursor:'+(live&&!hasVoted?'pointer':'default')+'">'
+      +'<div style="display:flex;justify-content:space-between;margin-bottom:8px">'
+      +'<span style="font-weight:600;font-size:0.92rem;color:'+(win?'#22D47A':'#E8EDF8')+'">'+(win?'🏆 ':'')+o+'</span>'
+      +'<span style="color:#5A6A8A;font-size:0.85rem">'+pv+'% · '+p.votes[i]+' votes</span></div>'
+      +'<div class="bar-bg"><div class="bar-fill'+(win?' win':'')+'" style="width:'+pv+'%;height:6px"></div></div></div>';
+  }).join('');
+
+  const actions = (live && !hasVoted ? '<button class="btn-primary" id="voteBtn" onclick="doVote()" disabled>🗳️ Vote (0.001 ETH) — Select option first</button>' : '')
+    + (hasVoted ? '<div style="padding:0.7rem 1.2rem;background:rgba(34,212,122,0.1);border-radius:10px;color:#22D47A;font-size:0.88rem;border:1px solid rgba(34,212,122,0.25)">✅ You have voted</div>' : '')
+    + (canFin ? '<button class="btn-success" onclick="doFinalize()">🏁 Finalize Poll</button>' : '')
+    + '<button class="btn-outline" onclick="window.open(\'https://sepolia.etherscan.io/address/'+CA+'\',\'_blank\')">🔍 Etherscan</button>';
+
+  document.getElementById('modalInner').innerHTML =
+    '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1.5rem">'
+    +'<div><div style="margin-bottom:0.75rem">'+(p.finalized?'<span class="pill pill-done">FINALIZED</span>':live?'<span class="pill pill-live">🔴 LIVE</span>':'<span class="pill pill-ended">ENDED</span>')+'</div>'
+    +'<div style="font-family:Space Grotesk,sans-serif;font-size:1.4rem;font-weight:700;line-height:1.3">'+p.question+'</div></div>'
+    +'<button class="btn-outline" onclick="closeModal()">✕</button></div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.75rem;margin-bottom:1.5rem">'
+    +'<div style="background:#0C0F1A;border-radius:10px;padding:0.75rem;text-align:center"><div style="font-size:0.65rem;color:#5A6A8A;text-transform:uppercase;margin-bottom:4px">Votes</div><div style="font-family:Space Grotesk,sans-serif;font-size:1.1rem;font-weight:700;color:#A0BBFF">'+p.totalVotes+'</div></div>'
+    +'<div style="background:#0C0F1A;border-radius:10px;padding:0.75rem;text-align:center"><div style="font-size:0.65rem;color:#5A6A8A;text-transform:uppercase;margin-bottom:4px">Pool</div><div style="font-family:Space Grotesk,sans-serif;font-size:1.1rem;font-weight:700;color:#A0BBFF">'+fe(p.totalFunds)+' ETH</div></div>'
+    +'<div style="background:#0C0F1A;border-radius:10px;padding:0.75rem;text-align:center"><div style="font-size:0.65rem;color:#5A6A8A;text-transform:uppercase;margin-bottom:4px">Time Left</div><div style="font-family:Space Grotesk,sans-serif;font-size:1.1rem;font-weight:700;color:#A0BBFF">'+fmtTime(rem)+'</div></div>'
+    +'</div>'
+    +'<div>'+optHtml+'</div>'
+    +'<div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-top:1.5rem">'+actions+'</div>'
+    +'<div style="margin-top:1rem;padding:0.75rem 1rem;background:#0C0F1A;border-radius:10px;font-size:0.75rem;color:#5A6A8A">👤 Creator: '+sa(p.creator)+'</div>';
+
+  document.getElementById('modalBg').classList.add('show');
+}
+
+function pickOpt(i) {
+  if(!curPoll) return;
+  const rem = curPoll.endTime - Math.floor(Date.now()/1000);
+  if(!(rem>0 && !curPoll.finalized) || voted[curPoll.id]) return;
+  selOpt = i;
+  curPoll.options.forEach((_,j) => {
+    const r = document.getElementById('or'+j);
+    if(r) r.classList.toggle('selected', j===i);
+  });
+  const vb = document.getElementById('voteBtn');
+  if(vb) { vb.disabled=false; vb.textContent='🗳️ Vote (0.001 ETH) on "'+curPoll.options[i]+'"'; }
+}
+
+async function doVote() {
+  if(selOpt===null || !ct) return;
+  closeModal();
+  showToast('info','Submitting vote...');
+  try {
+    const tx = await ct.vote(curPoll.id, selOpt, {value:ethers.parseEther("0.001")});
+    showToast('info','Waiting for confirmation...');
+    await tx.wait();
+    showToast('success','Vote cast! ✅');
+    loadPolls();
+  } catch(e) { showToast('error', e.reason || e.message?.slice(0,80) || 'Vote failed'); }
+}
+
+async function doFinalize() {
+  if(!ct) return;
+  closeModal();
+  showToast('info','Finalizing poll...');
+  try {
+    const tx = await ct.finalizePoll(curPoll.id);
+    await tx.wait();
+    showToast('success','Poll finalized! 🏆');
+    loadPolls();
+  } catch(e) { showToast('error', e.reason || e.message?.slice(0,80) || 'Finalize failed'); }
+}
+
+function closeModal() { document.getElementById('modalBg').classList.remove('show'); }
+
+// Create Poll Logic
+function renderOpts() {
+  const d = document.getElementById('optsList'); if(!d) return;
+  d.innerHTML = opts.map((o,i)=>
+    '<div style="display:flex;gap:8px;margin-bottom:8px">'
+    +'<div style="width:28px;height:28px;border-radius:50%;background:rgba(79,126,255,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:10px;font-size:0.78rem;color:#4F7EFF;font-weight:600">'+(i+1)+'</div>'
+    +'<input placeholder="Option '+(i+1)+'" value="'+o+'" oninput="opts['+(i)+']=this.value;renderBetOpts()" maxlength="100"/>'
+    +(opts.length>2?'<button class="btn-outline" style="padding:0 12px;color:#FF4F6A;border-color:rgba(255,79,106,0.3);flex-shrink:0" onclick="rmOpt('+i+')">✕</button>':'')
+    +'</div>'
+  ).join('');
+  const ab = document.getElementById('addOptBtn');
+  if(ab) ab.style.display = opts.length>=6 ? 'none' : 'inline-flex';
+  renderBetOpts();
+}
+
+function addOpt() { if(opts.length<6){opts.push('');renderOpts();} }
+function rmOpt(i) { if(opts.length>2){opts.splice(i,1);if(betIdx>=opts.length)betIdx=0;renderOpts();} }
+
+function toggleBet() {
+  betOn=!betOn;
+  document.getElementById('betTgl').classList.toggle('on',betOn);
+  document.getElementById('betSec').style.display=betOn?'block':'none';
+  document.getElementById('betCostRow').style.display=betOn?'flex':'none';
+  document.getElementById('totalCost').textContent=betOn?'0.006 ETH':'0.005 ETH';
+}
+
+function renderBetOpts() {
+  const d=document.getElementById('betOptsList'); if(!d) return;
+  d.innerHTML=opts.filter(o=>o.trim()).map((o,i)=>
+    '<span class="bet-opt'+(betIdx===i?' sel':'')+'" onclick="betIdx='+i+';renderBetOpts()">'+o+'</span>'
+  ).join('');
+}
+
+async function submitPoll() {
+  const q=document.getElementById('pollQ').value.trim();
+  const validOpts=opts.filter(o=>o.trim());
+  if(!q){showToast('error','Enter a question');return;}
+  if(validOpts.length<2){showToast('error','Need at least 2 options');return;}
+  if(!ct){showToast('error','Connect wallet first');return;}
+  const dur=parseInt(document.getElementById('pollDur').value);
+  const bi=betOn?betIdx:255;
+  const total=betOn?"0.006":"0.005";
+  const btn=document.getElementById('createBtn');
+  btn.disabled=true; btn.textContent='⏳ Creating...';
+  showToast('info','Confirm transaction in MetaMask...');
+  try {
+    const tx=await ct.createPoll(q,validOpts,dur,bi,{value:ethers.parseEther(total)});
+    showToast('info','Creating on blockchain...');
+    await tx.wait();
+    showToast('success','Poll created! 🎉');
+    opts=["",""]; betOn=false; betIdx=0;
+    document.getElementById('pollQ').value='';
+    document.getElementById('qc').textContent='0';
+    document.getElementById('betTgl').classList.remove('on');
+    document.getElementById('betSec').style.display='none';
+    document.getElementById('betCostRow').style.display='none';
+    document.getElementById('totalCost').textContent='0.005 ETH';
+    renderOpts();
+    showPage('polls');
+  } catch(e){showToast('error',e.reason||e.message?.slice(0,80)||'Failed');}
+  btn.disabled=false; btn.textContent='🚀 Create Poll on Blockchain';
+}
+
+renderOpts();
+</script>
+</body>
+</html>
